@@ -42,7 +42,7 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 const Signup: React.FC = () => {
-  const { register } = useAuth();
+  const { signup } = useAuth(); // Changed from register to signup
   const navigate = useNavigate();
   const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
@@ -62,7 +62,7 @@ const Signup: React.FC = () => {
   const onSubmit = async (values: FormValues) => {
     try {
       setIsLoading(true);
-      await register(values.username, values.email, values.password);
+      await signup(values.username, values.email, values.password);
       toast({
         title: "Account created",
         description: "Welcome to CodeConnects! Your account has been created successfully.",

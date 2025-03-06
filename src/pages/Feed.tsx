@@ -14,8 +14,27 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
 import { Code, Image as ImageIcon, Smile, Hash, Globe, Users } from 'lucide-react';
 
+// Define a proper Post type that matches the schema
+interface Post {
+  id: string;
+  userId: string;
+  username?: string; // Added for UI display
+  userProfilePic?: string | null; // Added for UI display
+  description: string;
+  content?: string; // Added for UI display
+  code?: string | null;
+  media?: string | null;
+  likes: string[] | number; // Can be array of user IDs or count for display
+  comments: number;
+  tags: string[];
+  timeAgo?: string; // Added for UI display
+  isLiked?: boolean; // Added for UI display
+  createdAt: string;
+  updatedAt?: string;
+}
+
 // Mock function to get feed data - would be replaced with actual API call
-const fetchFeed = async (feedType: string) => {
+const fetchFeed = async (feedType: string): Promise<Post[]> => {
   // Simulate API call delay
   await new Promise(resolve => setTimeout(resolve, 1000));
   
@@ -25,6 +44,7 @@ const fetchFeed = async (feedType: string) => {
     userId: `user-${i % 3}`,
     username: ['johndoe', 'janesmith', 'sarahdev'][i % 3],
     userProfilePic: null,
+    description: `This is a sample post #${i} with some content about coding and development. #react #javascript`,
     content: `This is a sample post #${i} with some content about coding and development. #react #javascript`,
     code: i % 3 === 0 ? 'const hello = () => console.log("Hello World");' : null,
     media: i % 4 === 0 ? 'https://via.placeholder.com/600x400' : null,
@@ -33,6 +53,8 @@ const fetchFeed = async (feedType: string) => {
     tags: ['react', 'javascript', 'webdev'].slice(0, i % 3 + 1),
     timeAgo: `${i + 1}h ago`,
     isLiked: Boolean(i % 2),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   }));
   
   return posts;
