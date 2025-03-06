@@ -114,11 +114,11 @@ const Navbar: React.FC = () => {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem as={Link} to={`/profile/${currentUser?.username}`}>
+                  <DropdownMenuItem onClick={() => navigate(`/profile/${currentUser?.username}`)}>
                     <User className="mr-2 h-4 w-4" />
                     <span>Profile</span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem as={Link} to="/settings">
+                  <DropdownMenuItem onClick={() => navigate('/settings')}>
                     <Settings className="mr-2 h-4 w-4" />
                     <span>Settings</span>
                   </DropdownMenuItem>
