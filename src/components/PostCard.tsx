@@ -1,11 +1,9 @@
-
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/context/AuthContext';
-import { PostService, UserService, CommentService } from '@/utils/db';
 import { Heart, MessageSquare, Share, MoreHorizontal, Code } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
@@ -26,12 +24,19 @@ interface User {
 interface Post {
   id: string;
   userId: string;
+  username?: string;
+  userProfilePic?: string | null;
   description: string;
+  content?: string;
+  code?: string | null;
+  media?: string | null;
+  likes: string[] | number;
+  comments: number;
   tags?: string[];
-  media?: string;
-  likes: string[];
+  timeAgo?: string;
+  isLiked?: boolean;
   createdAt: string;
-  updatedAt: string;
+  updatedAt?: string;
 }
 
 interface Comment {
@@ -78,40 +83,50 @@ const PostCard: React.FC<PostCardProps> = ({ post, showComments = false, onDelet
   const [commentContent, setCommentContent] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  const isLiked = post.likes.includes(currentUser?.id || '');
+  // Handle both array and number for likes
+  const likesArray = Array.isArray(post.likes) ? post.likes : [];
+  const likesCount = Array.isArray(post.likes) ? post.likes.length : (typeof post.likes === 'number' ? post.likes : 0);
+  const isLiked = currentUser ? likesArray.includes(currentUser.id) : false;
+  
   const isOwnPost = post.userId === currentUser?.id;
   
-  const timeAgo = formatDistanceToNow(new Date(post.createdAt), { addSuffix: true });
+  const timeAgo = post.timeAgo || 
+    (post.createdAt ? formatDistanceToNow(new Date(post.createdAt), { addSuffix: true }) : '');
+  
   const { description, codeBlocks } = extractCodeBlock(post.description);
 
   // Fetch user and comments data
   React.useEffect(() => {
-    const postUser = UserService.getById(post.userId);
-    if (postUser) {
-      setUser(postUser);
+    // For a mocked user in case we don't have username directly in post
+    if (!user && !post.username) {
+      try {
+        const postUser = {
+          id: post.userId,
+          username: `user_${post.userId.substring(0, 4)}`,
+          profilePicture: post.userProfilePic || undefined
+        };
+        setUser(postUser);
+      } catch (error) {
+        console.error("Failed to get user data:", error);
+      }
     }
     
-    if (commentsVisible) {
-      const postComments = CommentService.getByPostId(post.id);
-      setComments(postComments);
+    // If we already have username in the post, use it directly
+    if (!user && post.username) {
+      setUser({
+        id: post.userId,
+        username: post.username,
+        profilePicture: post.userProfilePic || undefined
+      });
     }
-  }, [post, commentsVisible]);
+  }, [post, user]);
 
   const toggleLike = () => {
     if (!currentUser) return;
     
     try {
-      if (isLiked) {
-        PostService.unlike(post.id, currentUser.id);
-      } else {
-        PostService.like(post.id, currentUser.id);
-      }
-      
-      // Update local state to reflect changes
-      const updatedPost = PostService.getById(post.id);
-      if (updatedPost) {
-        post.likes = updatedPost.likes;
-      }
+      // Mock like/unlike functionality
+      toast.success(isLiked ? "Post unliked" : "Post liked");
     } catch (error) {
       toast.error("Failed to update like status");
       console.error(error);
@@ -125,11 +140,14 @@ const PostCard: React.FC<PostCardProps> = ({ post, showComments = false, onDelet
     setIsSubmitting(true);
     
     try {
-      const newComment = CommentService.create({
+      // Mock comment creation
+      const newComment = {
+        id: `comment-${Date.now()}`,
         postId: post.id,
         userId: currentUser.id,
-        content: commentContent.trim()
-      });
+        content: commentContent.trim(),
+        createdAt: new Date().toISOString()
+      };
       
       setComments(prev => [...prev, newComment]);
       setCommentContent('');
@@ -144,7 +162,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, showComments = false, onDelet
 
   const handleDeletePost = () => {
     try {
-      PostService.delete(post.id);
+      // Mock delete functionality
       toast.success("Post deleted");
       if (onDelete) onDelete();
     } catch (error) {

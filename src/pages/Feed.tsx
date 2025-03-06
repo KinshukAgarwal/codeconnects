@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
@@ -14,31 +13,27 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
 import { Code, Image as ImageIcon, Smile, Hash, Globe, Users } from 'lucide-react';
 
-// Define a proper Post type that matches the schema
 interface Post {
   id: string;
   userId: string;
-  username?: string; // Added for UI display
-  userProfilePic?: string | null; // Added for UI display
+  username?: string;
+  userProfilePic?: string | null;
   description: string;
-  content?: string; // Added for UI display
+  content?: string;
   code?: string | null;
   media?: string | null;
-  likes: string[] | number; // Can be array of user IDs or count for display
+  likes: string[];
   comments: number;
   tags: string[];
-  timeAgo?: string; // Added for UI display
-  isLiked?: boolean; // Added for UI display
+  timeAgo?: string;
+  isLiked?: boolean;
   createdAt: string;
-  updatedAt?: string;
+  updatedAt: string;
 }
 
-// Mock function to get feed data - would be replaced with actual API call
 const fetchFeed = async (feedType: string): Promise<Post[]> => {
-  // Simulate API call delay
   await new Promise(resolve => setTimeout(resolve, 1000));
   
-  // Mock data
   const posts = Array.from({ length: 10 }, (_, i) => ({
     id: `post-${i}`,
     userId: `user-${i % 3}`,
@@ -48,7 +43,7 @@ const fetchFeed = async (feedType: string): Promise<Post[]> => {
     content: `This is a sample post #${i} with some content about coding and development. #react #javascript`,
     code: i % 3 === 0 ? 'const hello = () => console.log("Hello World");' : null,
     media: i % 4 === 0 ? 'https://via.placeholder.com/600x400' : null,
-    likes: Math.floor(Math.random() * 120),
+    likes: Array.from({ length: Math.floor(Math.random() * 120) }, (_, j) => `user-${j}`),
     comments: Math.floor(Math.random() * 30),
     tags: ['react', 'javascript', 'webdev'].slice(0, i % 3 + 1),
     timeAgo: `${i + 1}h ago`,
@@ -75,7 +70,6 @@ const Feed: React.FC = () => {
     e.preventDefault();
     if (!postContent.trim()) return;
     
-    // Would be replaced with actual API call
     toast({
       title: "Post created",
       description: "Your post has been published successfully",
@@ -96,7 +90,6 @@ const Feed: React.FC = () => {
     <>
       <Navbar />
       <div className="container grid grid-cols-1 gap-6 py-8 md:grid-cols-3 lg:grid-cols-4">
-        {/* Left sidebar (hidden on mobile) */}
         <aside className="hidden md:block md:col-span-1">
           <Card>
             <CardHeader>
@@ -119,7 +112,6 @@ const Feed: React.FC = () => {
           </Card>
         </aside>
 
-        {/* Main content area */}
         <main className="col-span-1 space-y-6 md:col-span-2 lg:col-span-2">
           {currentUser && (
             <Card>
@@ -224,7 +216,6 @@ const Feed: React.FC = () => {
           </Tabs>
         </main>
 
-        {/* Right sidebar (hidden on mobile and medium screens) */}
         <aside className="hidden lg:block lg:col-span-1">
           <Card>
             <CardHeader>

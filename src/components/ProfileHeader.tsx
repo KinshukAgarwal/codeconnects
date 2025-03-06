@@ -4,77 +4,51 @@ import { Link } from 'react-router-dom';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/AuthContext';
-import { UserService } from '@/utils/db';
 import { MessageSquare, Share, Settings } from 'lucide-react';
 import { toast } from 'sonner';
 
-interface User {
-  id: string;
-  username: string;
-  profilePicture?: string;
-  bio?: string;
-  followers: string[];
-  following: string[];
-  createdAt: string;
-}
-
 interface ProfileHeaderProps {
-  user: User;
+  username: string;
+  bio: string;
+  profilePicture: string;
+  followersCount: number;
+  followingCount: number;
+  joinDate: string;
 }
 
-const ProfileHeader: React.FC<ProfileHeaderProps> = ({ user }) => {
-  const { currentUser, updateProfile } = useAuth();
-  const isCurrentUser = currentUser?.id === user.id;
-  const isFollowing = currentUser?.following.includes(user.id) || false;
-  const isFollowedByUser = user.following.includes(currentUser?.id || '');
-  const isMutualFollow = isFollowing && isFollowedByUser;
+const ProfileHeader: React.FC<ProfileHeaderProps> = ({ 
+  username, 
+  bio, 
+  profilePicture, 
+  followersCount, 
+  followingCount, 
+  joinDate 
+}) => {
+  const { currentUser } = useAuth();
+  const isCurrentUser = currentUser?.username === username;
+  const isFollowing = currentUser?.following?.includes(username) || false;
   
-  const joinDate = new Date(user.createdAt).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long'
-  });
-
   const handleFollowToggle = () => {
     if (!currentUser) return;
     
-    try {
-      if (isFollowing) {
-        UserService.unfollow(currentUser.id, user.id);
-        // Update current user's state
-        updateProfile({
-          ...currentUser,
-          following: currentUser.following.filter(id => id !== user.id)
-        });
-        toast.success(`Unfollowed ${user.username}`);
-      } else {
-        UserService.follow(currentUser.id, user.id);
-        // Update current user's state
-        updateProfile({
-          ...currentUser,
-          following: [...currentUser.following, user.id]
-        });
-        toast.success(`Following ${user.username}`);
-      }
-    } catch (error) {
-      toast.error("Failed to update follow status");
-      console.error(error);
-    }
+    // Would be replaced with actual API call
+    toast.success(isFollowing ? `Unfollowed ${username}` : `Following ${username}`);
   };
 
   return (
-    <div className="glass rounded-xl p-6 mb-6 animate-fade-in">
+    <div className="bg-card border rounded-xl p-6 mb-6">
       <div className="flex flex-col md:flex-row gap-6">
         <Avatar className="h-24 w-24 mx-auto md:mx-0">
-          <AvatarImage src={user.profilePicture} alt={user.username} />
+          <AvatarImage src={profilePicture} alt={username} />
           <AvatarFallback className="text-xl">
-            {user.username.substring(0, 2).toUpperCase()}
+            {username.substring(0, 2).toUpperCase()}
           </AvatarFallback>
         </Avatar>
         
         <div className="flex-1 text-center md:text-left">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold">{user.username}</h1>
+              <h1 className="text-2xl font-bold">{username}</h1>
               <p className="text-muted-foreground">Joined {joinDate}</p>
             </div>
             
@@ -95,9 +69,9 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({ user }) => {
                     {isFollowing ? 'Unfollow' : 'Follow'}
                   </Button>
                   
-                  {isMutualFollow && (
+                  {isFollowing && (
                     <Button variant="outline" asChild>
-                      <Link to={`/messages/${user.username}`}>
+                      <Link to={`/messages/${username}`}>
                         <MessageSquare className="mr-2 h-4 w-4" />
                         Message
                       </Link>
@@ -121,15 +95,15 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({ user }) => {
           </div>
           
           <div className="mt-4">
-            {user.bio && <p className="mb-4">{user.bio}</p>}
+            {bio && <p className="mb-4">{bio}</p>}
             
             <div className="flex justify-center md:justify-start gap-6 text-sm">
               <div>
-                <span className="font-bold">{user.followers.length}</span>
+                <span className="font-bold">{followersCount}</span>
                 <span className="text-muted-foreground ml-1.5">Followers</span>
               </div>
               <div>
-                <span className="font-bold">{user.following.length}</span>
+                <span className="font-bold">{followingCount}</span>
                 <span className="text-muted-foreground ml-1.5">Following</span>
               </div>
             </div>
