@@ -1,6 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from 'sonner';
+import useMySQLConnection from '@/hooks/useMySQLConnection';
 
 interface User {
   id: string;
@@ -30,6 +31,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
+  // This would be a real query in production
+  // For now we'll use our mock implementation
+  const { data: users } = useMySQLConnection('SELECT * FROM users');
+
   // Check for saved user on initial load
   useEffect(() => {
     const savedUser = localStorage.getItem('currentUser');
@@ -50,9 +55,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     try {
       // In a real app, this would call an API endpoint
-      // For demo purposes, we'll simulate a successful login
+      // that verifies credentials against the MySQL database
       
-      // Mock API call for demonstration
+      // For our mock implementation, we'll simulate a successful login
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       // Example user data
@@ -83,7 +88,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signup = async (username: string, email: string, password: string) => {
     setIsLoading(true);
     try {
-      // Mock API call for demonstration
+      // In a real app, this would call an API endpoint
+      // that inserts a new user into the MySQL database
+      
+      // For our mock implementation, we'll simulate a successful signup
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       // Example user data
@@ -119,7 +127,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateProfile = async (userData: Partial<User>) => {
     setIsLoading(true);
     try {
-      // Mock API call for demonstration
+      // In a real app, this would call an API endpoint
+      // that updates the user in the MySQL database
+      
+      // For our mock implementation, we'll simulate a successful update
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       if (currentUser) {

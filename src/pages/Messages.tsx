@@ -1,293 +1,323 @@
 
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import React, { useState, useRef, useEffect } from 'react';
+import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import Navbar from '@/components/Navbar';
+import MessageCard from '@/components/MessageCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent } from '@/components/ui/card';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
-import { Textarea } from '@/components/ui/textarea';
-import { useToast } from '@/components/ui/use-toast';
-import { Send, Search, PlusCircle } from 'lucide-react';
-import MessageCard from '@/components/MessageCard';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { PhoneCall, Video, MoreHorizontal, Send, Paperclip, Smile } from 'lucide-react';
 
-interface Conversation {
-  id: string;
-  participantId: string;
-  participantName: string;
-  participantUsername: string;
-  participantAvatar: string | null;
-  lastMessage: string;
-  lastMessageTime: string;
-  unreadCount: number;
-}
+// Later this will be fetched from database
+const conversations = [
+  {
+    id: 'user-1',
+    username: 'janesmith',
+    name: 'Jane Smith',
+    profilePic: null,
+    lastMessage: 'Did you see the new React updates?',
+    timestamp: new Date(Date.now() - 10 * 60000).toISOString(),
+    unread: 2,
+    online: true
+  },
+  {
+    id: 'user-2',
+    username: 'tomscott',
+    name: 'Tom Scott',
+    profilePic: null,
+    lastMessage: 'I fixed that bug we talked about',
+    timestamp: new Date(Date.now() - 3 * 3600000).toISOString(),
+    unread: 0,
+    online: false
+  },
+  {
+    id: 'user-3',
+    username: 'sarahdev',
+    name: 'Sarah Developer',
+    profilePic: null,
+    lastMessage: 'Thanks for the help with TypeScript!',
+    timestamp: new Date(Date.now() - 2 * 86400000).toISOString(),
+    unread: 0,
+    online: true
+  }
+];
 
-interface Message {
-  id: string;
-  senderId: string;
-  receiverId: string;
-  content: string;
-  media?: string | null;
-  createdAt: string;
-  read: boolean;
-}
-
-// Mock function to fetch conversations
-const fetchConversations = async (): Promise<Conversation[]> => {
-  await new Promise(resolve => setTimeout(resolve, 800));
-  
-  return [
+// Mock message data
+const generateMessages = (username: string) => {
+  const baseDate = new Date();
+  const messages = [
     {
-      id: 'conv-1',
-      participantId: 'user-1',
-      participantName: 'John Doe',
-      participantUsername: 'johndoe',
-      participantAvatar: null,
-      lastMessage: 'Did you check the new React 18 features?',
-      lastMessageTime: '2 hours ago',
-      unreadCount: 2,
+      id: '1',
+      content: 'Hey there! How's your coding project going?',
+      isCurrentUser: false,
+      timestamp: new Date(baseDate.getTime() - 60 * 60000).toISOString(),
+      isRead: true
     },
     {
-      id: 'conv-2',
-      participantId: 'user-2',
-      participantName: 'Jane Smith',
-      participantUsername: 'janesmith',
-      participantAvatar: null,
-      lastMessage: 'I just pushed the fix to the repo',
-      lastMessageTime: 'Yesterday',
-      unreadCount: 0,
+      id: '2',
+      content: 'It's going well! Just struggling with some TypeScript types.',
+      isCurrentUser: true,
+      timestamp: new Date(baseDate.getTime() - 55 * 60000).toISOString(),
+      isRead: true
     },
     {
-      id: 'conv-3',
-      participantId: 'user-3',
-      participantName: 'Sarah Dev',
-      participantUsername: 'sarahdev',
-      participantAvatar: null,
-      lastMessage: 'Thanks for the code review!',
-      lastMessageTime: '3 days ago',
-      unreadCount: 0,
+      id: '3',
+      content: 'I'm working on a React app with Tailwind. The UI is coming together nicely.',
+      isCurrentUser: true,
+      timestamp: new Date(baseDate.getTime() - 54 * 60000).toISOString(),
+      isRead: true
     },
+    {
+      id: '4',
+      content: 'That sounds great! Tailwind is amazing for productivity. Need any help with the TypeScript issues?',
+      isCurrentUser: false,
+      timestamp: new Date(baseDate.getTime() - 45 * 60000).toISOString(),
+      isRead: true
+    },
+    {
+      id: '5',
+      content: 'Thanks for offering! I'm trying to define proper interfaces for my components props.',
+      isCurrentUser: true,
+      timestamp: new Date(baseDate.getTime() - 30 * 60000).toISOString(),
+      isRead: true
+    },
+    {
+      id: '6',
+      content: 'Here's an example of a type definition that might help:\n\ninterface User {\n  id: string;\n  name: string;\n  email?: string;\n}',
+      isCurrentUser: false,
+      timestamp: new Date(baseDate.getTime() - 25 * 60000).toISOString(),
+      isRead: true
+    },
+    {
+      id: '7',
+      content: 'That's exactly what I needed! Thank you so much.',
+      isCurrentUser: true,
+      timestamp: new Date(baseDate.getTime() - 20 * 60000).toISOString(),
+      isRead: true
+    },
+    {
+      id: '8',
+      content: 'How's the rest of the project going? Any other challenges?',
+      isCurrentUser: false,
+      timestamp: new Date(baseDate.getTime() - 15 * 60000).toISOString(),
+      isRead: false
+    }
   ];
-};
-
-// Mock function to fetch messages for a conversation
-const fetchMessages = async (conversationId: string): Promise<Message[]> => {
-  await new Promise(resolve => setTimeout(resolve, 800));
   
-  return Array.from({ length: 15 }, (_, i) => ({
-    id: `msg-${i}`,
-    senderId: i % 2 === 0 ? 'user-123' : ['user-1', 'user-2', 'user-3'][parseInt(conversationId.split('-')[1]) - 1],
-    receiverId: i % 2 === 0 ? ['user-1', 'user-2', 'user-3'][parseInt(conversationId.split('-')[1]) - 1] : 'user-123',
-    content: `This is message #${i + 1} in the conversation. ${i % 5 === 0 ? 'It might include some code like `const x = 42;`' : ''}`,
-    createdAt: new Date(Date.now() - (15 - i) * 600000).toISOString(),
-    read: i < 13,
-  }));
+  return messages;
 };
 
 const Messages: React.FC = () => {
+  const { username } = useParams<{ username?: string }>();
   const { currentUser } = useAuth();
-  const navigate = useNavigate();
-  const { toast } = useToast();
-  const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
-  const [messageText, setMessageText] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [newMessage, setNewMessage] = useState('');
+  const [currentMessages, setCurrentMessages] = useState<any[]>([]);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   
-  const { data: conversations = [], isLoading: isLoadingConversations } = useQuery({
-    queryKey: ['conversations'],
-    queryFn: fetchConversations,
-    enabled: !!currentUser,
-  });
+  // Find the active conversation
+  const activeConversation = username 
+    ? conversations.find(c => c.username === username) 
+    : null;
   
-  const { data: messages = [], isLoading: isLoadingMessages } = useQuery({
-    queryKey: ['messages', selectedConversation],
-    queryFn: () => fetchMessages(selectedConversation || ''),
-    enabled: !!selectedConversation,
-  });
+  // Prepare messages for the active conversation
+  useEffect(() => {
+    if (username) {
+      const messages = generateMessages(username);
+      setCurrentMessages(messages);
+    }
+  }, [username]);
   
-  const filteredConversations = conversations.filter(
-    conv => conv.participantName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            conv.participantUsername.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Scroll to bottom of messages
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [currentMessages]);
   
-  const selectedConversationData = conversations.find(conv => conv.id === selectedConversation);
-
-  const handleSendMessage = () => {
-    if (!messageText.trim()) return;
+  const handleSendMessage = (e: React.FormEvent) => {
+    e.preventDefault();
     
-    // In a real app, this would send the message to the API
-    toast({
-      title: "Message sent",
-      description: "Your message has been sent.",
-    });
+    if (!newMessage.trim() || !username) return;
     
-    setMessageText('');
+    // Add new message
+    const newMsg = {
+      id: Date.now().toString(),
+      content: newMessage,
+      isCurrentUser: true,
+      timestamp: new Date().toISOString(),
+      isRead: false
+    };
+    
+    setCurrentMessages([...currentMessages, newMsg]);
+    setNewMessage('');
   };
-  
-  if (!currentUser) {
-    return (
-      <>
-        <Navbar />
-        <div className="container py-8 text-center">
-          <h2 className="text-2xl font-semibold mb-4">Sign in to access messages</h2>
-          <Button onClick={() => navigate('/login')}>Sign In</Button>
-        </div>
-      </>
-    );
-  }
   
   return (
     <>
       <Navbar />
-      <div className="container grid grid-cols-1 md:grid-cols-3 gap-0 h-[calc(100vh-4rem)]">
-        {/* Conversations Sidebar */}
-        <div className="md:col-span-1 border-r">
-          <div className="p-4">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search conversations"
-                  className="pl-9"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-              <Button size="icon" variant="ghost" title="New conversation">
-                <PlusCircle className="h-5 w-5" />
-              </Button>
-            </div>
-            
-            <div className="space-y-1 max-h-[calc(100vh-8rem)] overflow-y-auto">
-              {isLoadingConversations ? (
-                <div className="flex justify-center p-4">
-                  <p>Loading conversations...</p>
-                </div>
-              ) : filteredConversations.length === 0 ? (
-                <div className="text-center p-4">
-                  <p className="text-muted-foreground">No conversations found</p>
-                </div>
-              ) : (
-                filteredConversations.map((conversation) => (
-                  <div
+      <div className="container grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-0 md:gap-6 h-[calc(100vh-4rem)] py-6">
+        {/* Conversation List - Hidden on mobile when in a conversation */}
+        <div className={`hidden md:block md:col-span-1 h-full ${username ? '' : 'col-span-full'}`}>
+          <Card className="h-full">
+            <CardHeader className="px-4 py-3">
+              <CardTitle className="text-xl">Messages</CardTitle>
+            </CardHeader>
+            <Separator />
+            <ScrollArea className="h-[calc(100%-4rem)]">
+              <CardContent className="px-3 py-3">
+                {conversations.map((conversation) => (
+                  <Link
+                    to={`/messages/${conversation.username}`}
                     key={conversation.id}
-                    className={`p-3 rounded-lg cursor-pointer hover:bg-secondary/50 transition-colors ${selectedConversation === conversation.id ? 'bg-secondary' : ''}`}
-                    onClick={() => setSelectedConversation(conversation.id)}
+                    className="block"
                   >
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-10 w-10">
-                        <AvatarImage src={conversation.participantAvatar || ''} />
-                        <AvatarFallback>
-                          {conversation.participantName.substring(0, 2).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
+                    <div className={`flex items-center gap-3 p-2 rounded-lg transition-colors ${
+                      conversation.username === username ? 'bg-muted' : 'hover:bg-muted/50'
+                    }`}>
+                      <div className="relative">
+                        <Avatar>
+                          <AvatarFallback>
+                            {conversation.name.substring(0, 2).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        {conversation.online && (
+                          <span className="absolute bottom-0 right-0 block h-3 w-3 rounded-full bg-green-500 ring-2 ring-background" />
+                        )}
+                      </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <p className="font-medium truncate">{conversation.participantName}</p>
-                          <span className="text-xs text-muted-foreground">{conversation.lastMessageTime}</span>
+                        <div className="flex justify-between items-baseline">
+                          <h4 className="font-medium text-sm truncate">{conversation.name}</h4>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(conversation.timestamp).toLocaleDateString(undefined, { 
+                              month: 'short', 
+                              day: 'numeric' 
+                            })}
+                          </span>
                         </div>
-                        <div className="flex items-center justify-between">
-                          <p className="text-sm text-muted-foreground truncate">
+                        <div className="flex justify-between items-center">
+                          <p className="text-xs truncate text-muted-foreground">
                             {conversation.lastMessage}
                           </p>
-                          {conversation.unreadCount > 0 && (
-                            <span className="inline-flex items-center justify-center h-5 w-5 text-xs bg-primary text-primary-foreground rounded-full">
-                              {conversation.unreadCount}
+                          {conversation.unread > 0 && (
+                            <span className="flex-shrink-0 rounded-full bg-primary text-primary-foreground px-2 py-0.5 text-xs">
+                              {conversation.unread}
                             </span>
                           )}
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+                  </Link>
+                ))}
+              </CardContent>
+            </ScrollArea>
+          </Card>
         </div>
-        
-        {/* Messages Area */}
-        <div className="md:col-span-2 flex flex-col h-full">
-          {selectedConversation ? (
-            <>
+
+        {/* Message View or Empty State */}
+        <div className={`col-span-1 md:col-span-2 lg:col-span-3 h-full ${username ? '' : 'hidden md:block'}`}>
+          {username && activeConversation ? (
+            <Card className="h-full flex flex-col">
               {/* Conversation Header */}
-              <div className="p-4 border-b flex items-center gap-3">
-                <Avatar className="h-10 w-10">
-                  <AvatarImage src={selectedConversationData?.participantAvatar || ''} />
-                  <AvatarFallback>
-                    {selectedConversationData?.participantName.substring(0, 2).toUpperCase() || 'U'}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <p className="font-medium">{selectedConversationData?.participantName}</p>
-                  <p className="text-sm text-muted-foreground">@{selectedConversationData?.participantUsername}</p>
+              <CardHeader className="px-4 py-3 border-b">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-3">
+                    <Link to={`/profile/${activeConversation.username}`}>
+                      <Avatar>
+                        <AvatarFallback>
+                          {activeConversation.name.substring(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                    </Link>
+                    <div>
+                      <Link to={`/profile/${activeConversation.username}`}>
+                        <h3 className="font-medium hover:underline">{activeConversation.name}</h3>
+                      </Link>
+                      <p className="text-xs text-muted-foreground">
+                        {activeConversation.online ? 'Online' : 'Offline'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="icon" title="Audio call">
+                      <PhoneCall className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" title="Video call">
+                      <Video className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" title="More options">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
-              
-              {/* Messages List */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {isLoadingMessages ? (
-                  <div className="flex justify-center p-4">
-                    <p>Loading messages...</p>
-                  </div>
-                ) : messages.length === 0 ? (
-                  <div className="text-center p-4">
-                    <p className="text-muted-foreground">No messages yet</p>
-                    <p className="text-sm text-muted-foreground">Send a message to start the conversation</p>
-                  </div>
-                ) : (
-                  messages.map((message) => (
+              </CardHeader>
+
+              {/* Messages Area */}
+              <ScrollArea className="flex-1 p-4">
+                <div className="space-y-4">
+                  {currentMessages.map((msg) => (
                     <MessageCard
-                      key={message.id}
-                      message={message.content}
-                      isCurrentUser={message.senderId === currentUser.id}
-                      timestamp={new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      isRead={message.read}
+                      key={msg.id}
+                      content={msg.content}
+                      isCurrentUser={msg.isCurrentUser}
+                      timestamp={msg.timestamp}
+                      isRead={msg.isRead}
                     />
-                  ))
-                )}
-              </div>
-              
-              {/* Message Input */}
-              <div className="p-4 border-t">
-                <div className="flex items-end gap-2">
-                  <Textarea
-                    placeholder="Type a message..."
-                    className="min-h-[60px] resize-none"
-                    value={messageText}
-                    onChange={(e) => setMessageText(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSendMessage();
-                      }
-                    }}
-                  />
-                  <Button 
-                    className="h-10 w-10 rounded-full p-0" 
-                    disabled={!messageText.trim()}
-                    onClick={handleSendMessage}
-                  >
-                    <Send className="h-4 w-4" />
-                    <span className="sr-only">Send</span>
-                  </Button>
+                  ))}
+                  <div ref={messagesEndRef} />
                 </div>
+              </ScrollArea>
+
+              {/* Message Input */}
+              <div className="p-3 border-t">
+                <form onSubmit={handleSendMessage} className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="flex-shrink-0"
+                  >
+                    <Paperclip className="h-5 w-5" />
+                  </Button>
+                  <Input
+                    placeholder="Type a message..."
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="flex-shrink-0"
+                  >
+                    <Smile className="h-5 w-5" />
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="default"
+                    size="icon"
+                    disabled={!newMessage.trim()}
+                    className="flex-shrink-0"
+                  >
+                    <Send className="h-5 w-5" />
+                  </Button>
+                </form>
               </div>
-            </>
+            </Card>
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-center p-4">
-              <div className="max-w-sm">
-                <h3 className="text-lg font-medium mb-2">Select a conversation</h3>
-                <p className="text-muted-foreground mb-4">
-                  Choose a conversation from the list or start a new one
+            <Card className="h-full flex items-center justify-center">
+              <div className="text-center max-w-md p-6">
+                <h3 className="text-2xl font-semibold mb-2">Your Messages</h3>
+                <p className="text-muted-foreground mb-6">
+                  Send private messages to other developers to collaborate on projects.
                 </p>
-                <Button variant="outline" className="gap-2" onClick={() => navigate('/explore')}>
-                  <PlusCircle className="h-4 w-4" />
-                  Find Developers
+                <Button asChild>
+                  <Link to="/explore">Find Developers</Link>
                 </Button>
               </div>
-            </div>
+            </Card>
           )}
         </div>
       </div>

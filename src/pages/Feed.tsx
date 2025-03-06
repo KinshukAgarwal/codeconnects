@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
@@ -12,6 +13,7 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
 import { Code, Image as ImageIcon, Smile, Hash, Globe, Users } from 'lucide-react';
+import { MySQLService } from '@/utils/database';
 
 interface Post {
   id: string;
@@ -31,8 +33,13 @@ interface Post {
   updatedAt: string;
 }
 
+// In a real app, this would fetch posts from the MySQL database
 const fetchFeed = async (feedType: string): Promise<Post[]> => {
+  // Simulate API delay
   await new Promise(resolve => setTimeout(resolve, 1000));
+  
+  // This would be a real MySQL query in production
+  // For now we'll use our mock implementation
   
   const posts = Array.from({ length: 10 }, (_, i) => ({
     id: `post-${i}`,
@@ -61,15 +68,21 @@ const Feed: React.FC = () => {
   const [activeTab, setActiveTab] = useState('all');
   const [postContent, setPostContent] = useState('');
   
+  // Use React Query to fetch feed data
   const { data: posts = [], isLoading, isError } = useQuery({
     queryKey: ['feed', activeTab],
     queryFn: () => fetchFeed(activeTab),
   });
 
+  // This would fetch trending tags from the database in a real app
+  const { data: dbPosts } = MySQLService.fetchPosts(5);
+  console.log("Mock DB Posts:", dbPosts); // Log the mock data to console
+
   const handleSubmitPost = (e: React.FormEvent) => {
     e.preventDefault();
     if (!postContent.trim()) return;
     
+    // In a real app, this would insert a new post into the MySQL database
     toast({
       title: "Post created",
       description: "Your post has been published successfully",
@@ -90,6 +103,7 @@ const Feed: React.FC = () => {
     <>
       <Navbar />
       <div className="container grid grid-cols-1 gap-6 py-8 md:grid-cols-3 lg:grid-cols-4">
+        {/* Sidebar - Trending Tags */}
         <aside className="hidden md:block md:col-span-1">
           <Card>
             <CardHeader>
@@ -112,7 +126,9 @@ const Feed: React.FC = () => {
           </Card>
         </aside>
 
+        {/* Main Feed */}
         <main className="col-span-1 space-y-6 md:col-span-2 lg:col-span-2">
+          {/* Post Creation Form */}
           {currentUser && (
             <Card>
               <CardContent className="pt-6">
@@ -161,6 +177,7 @@ const Feed: React.FC = () => {
             </Card>
           )}
 
+          {/* Feed Tabs */}
           <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="w-full grid grid-cols-2">
               <TabsTrigger value="all" className="flex items-center gap-2">
@@ -216,6 +233,7 @@ const Feed: React.FC = () => {
           </Tabs>
         </main>
 
+        {/* Sidebar - Who to Follow */}
         <aside className="hidden lg:block lg:col-span-1">
           <Card>
             <CardHeader>
