@@ -52,21 +52,21 @@ const generateMessages = (username: string) => {
   const messages = [
     {
       id: '1',
-      content: 'Hey there! How's your coding project going?',
+      content: 'Hey there! How\'s your coding project going?',
       isCurrentUser: false,
       timestamp: new Date(baseDate.getTime() - 60 * 60000).toISOString(),
       isRead: true
     },
     {
       id: '2',
-      content: 'It's going well! Just struggling with some TypeScript types.',
+      content: 'It\'s going well! Just struggling with some TypeScript types.',
       isCurrentUser: true,
       timestamp: new Date(baseDate.getTime() - 55 * 60000).toISOString(),
       isRead: true
     },
     {
       id: '3',
-      content: 'I'm working on a React app with Tailwind. The UI is coming together nicely.',
+      content: 'I\'m working on a React app with Tailwind. The UI is coming together nicely.',
       isCurrentUser: true,
       timestamp: new Date(baseDate.getTime() - 54 * 60000).toISOString(),
       isRead: true
@@ -80,28 +80,28 @@ const generateMessages = (username: string) => {
     },
     {
       id: '5',
-      content: 'Thanks for offering! I'm trying to define proper interfaces for my components props.',
+      content: 'Thanks for offering! I\'m trying to define proper interfaces for my components props.',
       isCurrentUser: true,
       timestamp: new Date(baseDate.getTime() - 30 * 60000).toISOString(),
       isRead: true
     },
     {
       id: '6',
-      content: 'Here's an example of a type definition that might help:\n\ninterface User {\n  id: string;\n  name: string;\n  email?: string;\n}',
+      content: 'Here\'s an example of a type definition that might help:\n\ninterface User {\n  id: string;\n  name: string;\n  email?: string;\n}',
       isCurrentUser: false,
       timestamp: new Date(baseDate.getTime() - 25 * 60000).toISOString(),
       isRead: true
     },
     {
       id: '7',
-      content: 'That's exactly what I needed! Thank you so much.',
+      content: 'That\'s exactly what I needed! Thank you so much.',
       isCurrentUser: true,
       timestamp: new Date(baseDate.getTime() - 20 * 60000).toISOString(),
       isRead: true
     },
     {
       id: '8',
-      content: 'How's the rest of the project going? Any other challenges?',
+      content: 'How\'s the rest of the project going? Any other challenges?',
       isCurrentUser: false,
       timestamp: new Date(baseDate.getTime() - 15 * 60000).toISOString(),
       isRead: false
