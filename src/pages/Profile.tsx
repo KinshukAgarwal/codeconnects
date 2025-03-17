@@ -27,7 +27,7 @@ interface ProfilePost {
   timeAgo?: string;
   isLiked?: boolean;
   createdAt: string;
-  updatedAt?: string;
+  updatedAt: string; // Changed from optional to required
 }
 
 // Mock function to fetch user profile data
@@ -63,7 +63,7 @@ const fetchUserPosts = async (userId: string): Promise<ProfilePost[]> => {
     timeAgo: `${i + 1}d ago`,
     isLiked: Boolean(i % 2),
     createdAt: new Date(Date.now() - i * 86400000).toISOString(),
-    updatedAt: new Date(Date.now() - i * 86400000).toISOString(),
+    updatedAt: new Date(Date.now() - i * 86400000).toISOString(), // Always providing updatedAt value
   }));
 };
 
