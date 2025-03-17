@@ -17,7 +17,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId }) => {
   
   const { usePostComments, useCreateComment } = useComments(postId);
   const { data: comments = [], isLoading } = usePostComments();
-  const { mutate: addComment, isLoading: isSubmitting } = useCreateComment();
+  const { mutate: addComment, isPending: isSubmitting } = useCreateComment();
   
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

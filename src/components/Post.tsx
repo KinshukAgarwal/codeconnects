@@ -16,7 +16,7 @@ interface PostProps {
 const Post: React.FC<PostProps> = ({ onPostCreated }) => {
   const { currentUser } = useAuth();
   const { useCreatePost } = usePosts();
-  const { mutate: createPost, isLoading: isSubmitting } = useCreatePost();
+  const { mutate: createPost, isPending: isSubmitting } = useCreatePost();
   
   const [content, setContent] = useState('');
   const [tags, setTags] = useState<string[]>([]);
