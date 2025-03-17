@@ -1,9 +1,10 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import useMySQLConnection from '@/hooks/useMySQLConnection';
+import { supabase } from '@/integrations/supabase/client';
+import { User, Session } from '@supabase/supabase-js';
 
-interface User {
+interface AuthUser {
   id: string;
   username: string;
   email: string;
@@ -14,71 +15,132 @@ interface User {
   createdAt: string;
 }
 
+interface Profile {
+  id: string;
+  username: string;
+  profile_picture: string | null;
+  bio: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 interface AuthContextType {
-  currentUser: User | null;
+  currentUser: AuthUser | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
   signup: (username: string, email: string, password: string) => Promise<void>;
-  logout: () => void;
-  updateProfile: (userData: Partial<User>) => Promise<void>;
+  logout: () => Promise<void>;
+  updateProfile: (userData: Partial<AuthUser>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [session, setSession] = useState<Session | null>(null);
 
-  // This would be a real query in production
-  // For now we'll use our mock implementation
-  const { data: users } = useMySQLConnection('SELECT * FROM users');
-
-  // Check for saved user on initial load
+  // Initialize auth state
   useEffect(() => {
-    const savedUser = localStorage.getItem('currentUser');
-    if (savedUser) {
-      try {
-        const parsedUser = JSON.parse(savedUser);
-        setCurrentUser(parsedUser);
-        setIsAuthenticated(true);
-      } catch (error) {
-        console.error('Failed to parse saved user:', error);
-        localStorage.removeItem('currentUser');
+    const initializeAuth = async () => {
+      setIsLoading(true);
+      
+      // Check for existing session
+      const { data: { session } } = await supabase.auth.getSession();
+      setSession(session);
+      
+      if (session) {
+        await fetchUserProfile(session.user);
       }
-    }
-    setIsLoading(false);
+      
+      setIsLoading(false);
+      
+      // Listen for auth changes
+      const { data: { subscription } } = await supabase.auth.onAuthStateChange(
+        async (event, session) => {
+          setSession(session);
+          
+          if (event === 'SIGNED_IN' && session) {
+            await fetchUserProfile(session.user);
+          } else if (event === 'SIGNED_OUT') {
+            setCurrentUser(null);
+            setIsAuthenticated(false);
+          }
+        }
+      );
+      
+      return () => {
+        subscription.unsubscribe();
+      };
+    };
+    
+    initializeAuth();
   }, []);
+  
+  const fetchUserProfile = async (user: User) => {
+    if (!user) return;
+    
+    try {
+      // Get user profile from the profiles table
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+      
+      if (error) throw error;
+      
+      // Get follower count
+      const { data: followers, error: followersError } = await supabase
+        .from('likes')
+        .select('user_id')
+        .eq('post_id', profile.id);
+        
+      if (followersError) throw followersError;
+      
+      // Get following count
+      const { data: following, error: followingError } = await supabase
+        .from('likes')
+        .select('post_id')
+        .eq('user_id', profile.id);
+        
+      if (followingError) throw followingError;
+      
+      const authUser: AuthUser = {
+        id: profile.id,
+        username: profile.username,
+        email: user.email || '',
+        profilePicture: profile.profile_picture || undefined,
+        bio: profile.bio || undefined,
+        followers: followers?.map(f => f.user_id) || [],
+        following: following?.map(f => f.post_id) || [],
+        createdAt: profile.created_at
+      };
+      
+      setCurrentUser(authUser);
+      setIsAuthenticated(true);
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+      toast.error('Failed to fetch user profile');
+    }
+  };
 
   const login = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      // In a real app, this would call an API endpoint
-      // that verifies credentials against the MySQL database
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
       
-      // For our mock implementation, we'll simulate a successful login
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      if (error) throw error;
       
-      // Example user data
-      const user: User = {
-        id: "user-123",
-        username: "devuser",
-        email: email,
-        profilePicture: "https://source.unsplash.com/random/200x200/?portrait",
-        bio: "Full-stack developer passionate about web technologies",
-        followers: ["user-456", "user-789"],
-        following: ["user-456"],
-        createdAt: new Date().toISOString()
-      };
-      
-      setCurrentUser(user);
-      setIsAuthenticated(true);
-      localStorage.setItem('currentUser', JSON.stringify(user));
       toast.success("Login successful");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Login failed:", error);
-      toast.error("Login failed. Please check your credentials.");
+      toast.error(error.message || "Login failed. Please check your credentials.");
       throw error;
     } finally {
       setIsLoading(false);
@@ -88,60 +150,82 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signup = async (username: string, email: string, password: string) => {
     setIsLoading(true);
     try {
-      // In a real app, this would call an API endpoint
-      // that inserts a new user into the MySQL database
+      // Check if username is already taken
+      const { data: existingUser, error: checkError } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('username', username)
+        .single();
+        
+      if (existingUser) {
+        throw new Error('Username is already taken');
+      }
       
-      // For our mock implementation, we'll simulate a successful signup
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Example user data
-      const user: User = {
-        id: `user-${Date.now()}`,
-        username,
+      // Sign up user
+      const { data, error } = await supabase.auth.signUp({
         email,
-        followers: [],
-        following: [],
-        createdAt: new Date().toISOString()
-      };
+        password,
+        options: {
+          data: {
+            username,
+          }
+        }
+      });
       
-      setCurrentUser(user);
-      setIsAuthenticated(true);
-      localStorage.setItem('currentUser', JSON.stringify(user));
+      if (error) throw error;
+      
       toast.success("Account created successfully");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Signup failed:", error);
-      toast.error("Signup failed. Please try again.");
+      toast.error(error.message || "Signup failed. Please try again.");
       throw error;
     } finally {
       setIsLoading(false);
     }
   };
 
-  const logout = () => {
-    setCurrentUser(null);
-    setIsAuthenticated(false);
-    localStorage.removeItem('currentUser');
-    toast.success("Logged out successfully");
+  const logout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      setCurrentUser(null);
+      setIsAuthenticated(false);
+      toast.success("Logged out successfully");
+    } catch (error: any) {
+      console.error('Logout failed:', error);
+      toast.error(error.message || 'Logout failed');
+    }
   };
 
-  const updateProfile = async (userData: Partial<User>) => {
+  const updateProfile = async (userData: Partial<AuthUser>) => {
     setIsLoading(true);
     try {
-      // In a real app, this would call an API endpoint
-      // that updates the user in the MySQL database
+      if (!currentUser) throw new Error('No user logged in');
       
-      // For our mock implementation, we'll simulate a successful update
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Update the profile in Supabase
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          username: userData.username,
+          profile_picture: userData.profilePicture,
+          bio: userData.bio,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', currentUser.id);
+        
+      if (error) throw error;
       
-      if (currentUser) {
-        const updatedUser = { ...currentUser, ...userData };
-        setCurrentUser(updatedUser);
-        localStorage.setItem('currentUser', JSON.stringify(updatedUser));
-        toast.success("Profile updated successfully");
-      }
-    } catch (error) {
+      // Update local state
+      setCurrentUser({
+        ...currentUser,
+        ...userData
+      });
+      
+      toast.success("Profile updated successfully");
+    } catch (error: any) {
       console.error("Profile update failed:", error);
-      toast.error("Failed to update profile. Please try again.");
+      toast.error(error.message || "Failed to update profile. Please try again.");
       throw error;
     } finally {
       setIsLoading(false);

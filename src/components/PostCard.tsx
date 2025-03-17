@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
@@ -18,6 +18,7 @@ import {
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { useAuth } from '@/context/AuthContext';
+import { usePosts } from '@/hooks/usePosts';
 
 interface PostCardProps {
   post: {
@@ -41,28 +42,39 @@ interface PostCardProps {
 
 const PostCard: React.FC<PostCardProps> = ({ post }) => {
   const { currentUser } = useAuth();
-  const [isLiked, setIsLiked] = useState(post.isLiked || false);
+  const navigate = useNavigate();
+  const { useLikePost } = usePosts();
+  const { mutate: toggleLike } = useLikePost();
+  
   const [isSaved, setIsSaved] = useState(false);
+  const [isLiked, setIsLiked] = useState(post.isLiked || false);
   const [likesCount, setLikesCount] = useState(
     Array.isArray(post.likes) ? post.likes.length : 0
   );
 
   const handleLike = () => {
     if (!currentUser) {
-      toast.error('You need to be logged in to like posts');
+      navigate('/login');
       return;
     }
 
+    // Optimistically update the UI
     setIsLiked(!isLiked);
     setLikesCount(prev => isLiked ? prev - 1 : prev + 1);
     
-    // In a real app, this would call an API to update the like status
-    toast.success(isLiked ? 'Post unliked' : 'Post liked');
+    // Call the API
+    toggleLike({ postId: post.id, isLiked }, {
+      onError: () => {
+        // Revert on error
+        setIsLiked(isLiked);
+        setLikesCount(prev => isLiked ? prev + 1 : prev - 1);
+      }
+    });
   };
 
   const handleSave = () => {
     if (!currentUser) {
-      toast.error('You need to be logged in to save posts');
+      navigate('/login');
       return;
     }
 
@@ -74,7 +86,7 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
 
   const handleShare = () => {
     // In a real app, this would open a share dialog
-    navigator.clipboard.writeText(`https://codeconnects.app/post/${post.id}`);
+    navigator.clipboard.writeText(`${window.location.origin}/post/${post.id}`);
     toast.success('Link copied to clipboard!');
   };
 

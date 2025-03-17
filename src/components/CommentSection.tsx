@@ -5,22 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 import { useAuth } from '@/context/AuthContext';
-import { CommentService, UserService } from '@/utils/db';
-import { toast } from 'sonner';
-
-interface User {
-  id: string;
-  username: string;
-  profilePicture?: string;
-}
-
-interface Comment {
-  id: string;
-  postId: string;
-  userId: string;
-  content: string;
-  createdAt: string;
-}
+import { useComments } from '@/hooks/useComments';
 
 interface CommentSectionProps {
   postId: string;
@@ -28,42 +13,24 @@ interface CommentSectionProps {
 
 const CommentSection: React.FC<CommentSectionProps> = ({ postId }) => {
   const { currentUser } = useAuth();
-  const [comments, setComments] = useState<Comment[]>([]);
   const [content, setContent] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
   
-  useEffect(() => {
-    // Fetch comments for the post
-    const fetchComments = () => {
-      const postComments = CommentService.getByPostId(postId);
-      setComments(postComments);
-    };
-    
-    fetchComments();
-  }, [postId]);
+  const { usePostComments, useCreateComment } = useComments(postId);
+  const { data: comments = [], isLoading } = usePostComments();
+  const { mutate: addComment, isLoading: isSubmitting } = useCreateComment();
   
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentUser || !content.trim()) return;
+    if (!currentUser || !content.trim() || isSubmitting) return;
     
-    setIsSubmitting(true);
-    
-    try {
-      const newComment = CommentService.create({
-        postId,
-        userId: currentUser.id,
-        content: content.trim()
-      });
-      
-      setComments(prev => [...prev, newComment]);
-      setContent('');
-      toast.success("Comment added");
-    } catch (error) {
-      toast.error("Failed to add comment");
-      console.error(error);
-    } finally {
-      setIsSubmitting(false);
-    }
+    addComment({
+      postId,
+      content: content.trim()
+    }, {
+      onSuccess: () => {
+        setContent('');
+      }
+    });
   };
   
   return (
@@ -103,7 +70,11 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId }) => {
       )}
       
       <div className="space-y-4">
-        {comments.length > 0 ? (
+        {isLoading ? (
+          <div className="flex justify-center py-4">
+            <p className="text-muted-foreground">Loading comments...</p>
+          </div>
+        ) : comments.length > 0 ? (
           comments.map((comment) => (
             <CommentItem key={comment.id} comment={comment} />
           ))
@@ -117,32 +88,33 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId }) => {
   );
 };
 
-const CommentItem: React.FC<{ comment: Comment }> = ({ comment }) => {
-  const [user, setUser] = useState<User | null>(null);
+interface CommentItemProps {
+  comment: {
+    id: string;
+    userId: string;
+    username: string;
+    userProfilePic?: string | null;
+    content: string;
+    createdAt: string;
+  };
+}
+
+const CommentItem: React.FC<CommentItemProps> = ({ comment }) => {
   const timeAgo = formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true });
-  
-  useEffect(() => {
-    const commentUser = UserService.getById(comment.userId);
-    if (commentUser) {
-      setUser(commentUser);
-    }
-  }, [comment]);
-  
-  if (!user) return null;
   
   return (
     <div className="flex gap-3">
       <Avatar className="h-8 w-8">
-        <AvatarImage src={user.profilePicture} alt={user.username} />
-        <AvatarFallback>{user.username.substring(0, 2).toUpperCase()}</AvatarFallback>
+        <AvatarImage src={comment.userProfilePic || ''} alt={comment.username} />
+        <AvatarFallback>{comment.username.substring(0, 2).toUpperCase()}</AvatarFallback>
       </Avatar>
       <div className="flex-1">
         <div className="flex items-center gap-2">
           <Link 
-            to={`/profile/${user.username}`} 
+            to={`/profile/${comment.username}`} 
             className="font-medium hover:underline"
           >
-            {user.username}
+            {comment.username}
           </Link>
           <span className="text-xs text-muted-foreground">{timeAgo}</span>
         </div>

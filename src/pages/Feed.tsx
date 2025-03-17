@@ -1,103 +1,79 @@
 
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import Navbar from '@/components/Navbar';
+import Post from '@/components/Post';
 import PostCard from '@/components/PostCard';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/components/ui/use-toast';
-import { Code, Image as ImageIcon, Smile, Hash, Globe, Users } from 'lucide-react';
-import { MySQLService } from '@/utils/database';
-
-interface Post {
-  id: string;
-  userId: string;
-  username?: string;
-  userProfilePic?: string | null;
-  description: string;
-  content?: string;
-  code?: string | null;
-  media?: string | null;
-  likes: string[];
-  comments: number;
-  tags: string[];
-  timeAgo?: string;
-  isLiked?: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-// In a real app, this would fetch posts from the MySQL database
-const fetchFeed = async (feedType: string): Promise<Post[]> => {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 1000));
-  
-  // This would be a real MySQL query in production
-  // For now we'll use our mock implementation
-  
-  const posts = Array.from({ length: 10 }, (_, i) => ({
-    id: `post-${i}`,
-    userId: `user-${i % 3}`,
-    username: ['johndoe', 'janesmith', 'sarahdev'][i % 3],
-    userProfilePic: null,
-    description: `This is a sample post #${i} with some content about coding and development. #react #javascript`,
-    content: `This is a sample post #${i} with some content about coding and development. #react #javascript`,
-    code: i % 3 === 0 ? 'const hello = () => console.log("Hello World");' : null,
-    media: i % 4 === 0 ? 'https://via.placeholder.com/600x400' : null,
-    likes: Array.from({ length: Math.floor(Math.random() * 120) }, (_, j) => `user-${j}`),
-    comments: Math.floor(Math.random() * 30),
-    tags: ['react', 'javascript', 'webdev'].slice(0, i % 3 + 1),
-    timeAgo: `${i + 1}h ago`,
-    isLiked: Boolean(i % 2),
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  }));
-  
-  return posts;
-};
+import { Button } from '@/components/ui/button';
+import { Hash, Globe, Users } from 'lucide-react';
+import { usePosts } from '@/hooks/usePosts';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 
 const Feed: React.FC = () => {
   const { currentUser } = useAuth();
-  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('all');
-  const [postContent, setPostContent] = useState('');
+  const { useFeedPosts } = usePosts();
+  const { data: posts = [], isLoading, isError } = useFeedPosts();
   
-  // Use React Query to fetch feed data
-  const { data: posts = [], isLoading, isError } = useQuery({
-    queryKey: ['feed', activeTab],
-    queryFn: () => fetchFeed(activeTab),
+  // Fetch trending tags
+  const { data: trendingTags = [] } = useQuery({
+    queryKey: ['trendingTags'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('post_tags')
+        .select(`
+          tags:tag_id(id, name)
+        `)
+        .limit(100);
+        
+      if (error) throw error;
+      
+      // Count tag occurrences
+      const tagCounts: Record<string, { name: string, count: number }> = {};
+      data.forEach(item => {
+        const tagName = item.tags.name;
+        if (!tagCounts[tagName]) {
+          tagCounts[tagName] = { name: tagName, count: 0 };
+        }
+        tagCounts[tagName].count++;
+      });
+      
+      // Convert to array and sort by count
+      return Object.values(tagCounts)
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5);
+    },
+    refetchOnWindowFocus: false,
+    staleTime: 300000, // 5 minutes
   });
-
-  // This would fetch trending tags from the database in a real app
-  const { data: dbPosts } = MySQLService.fetchPosts(5);
-  console.log("Mock DB Posts:", dbPosts); // Log the mock data to console
-
-  const handleSubmitPost = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!postContent.trim()) return;
-    
-    // In a real app, this would insert a new post into the MySQL database
-    toast({
-      title: "Post created",
-      description: "Your post has been published successfully",
-    });
-    
-    setPostContent('');
-  };
-
-  const trendingTags = [
-    { name: 'javascript', count: 2345 },
-    { name: 'react', count: 1823 },
-    { name: 'webdev', count: 1456 },
-    { name: 'programming', count: 1245 },
-    { name: 'typescript', count: 987 },
-  ];
+  
+  // Fetch suggested users to follow
+  const { data: suggestedUsers = [] } = useQuery({
+    queryKey: ['suggestedUsers'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, username, profile_picture')
+        .limit(3);
+        
+      if (error) throw error;
+      
+      return data.map(user => ({
+        id: user.id,
+        username: user.username,
+        profilePicture: user.profile_picture
+      }));
+    },
+    enabled: !!currentUser,
+    refetchOnWindowFocus: false,
+    staleTime: 300000, // 5 minutes
+  });
 
   return (
     <>
@@ -129,53 +105,7 @@ const Feed: React.FC = () => {
         {/* Main Feed */}
         <main className="col-span-1 space-y-6 md:col-span-2 lg:col-span-2">
           {/* Post Creation Form */}
-          {currentUser && (
-            <Card>
-              <CardContent className="pt-6">
-                <form onSubmit={handleSubmitPost}>
-                  <div className="flex gap-4">
-                    <Avatar className="h-10 w-10">
-                      <AvatarImage src={currentUser.profilePicture || ''} />
-                      <AvatarFallback>
-                        {currentUser.username?.substring(0, 2).toUpperCase() || 'U'}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 space-y-4">
-                      <Textarea
-                        placeholder="Share your code or thoughts..."
-                        className="min-h-[120px] resize-none"
-                        value={postContent}
-                        onChange={(e) => setPostContent(e.target.value)}
-                      />
-                      <div className="flex items-center justify-between">
-                        <div className="flex gap-2">
-                          <Button type="button" size="icon" variant="ghost" title="Add code">
-                            <Code className="h-4 w-4" />
-                          </Button>
-                          <Button type="button" size="icon" variant="ghost" title="Add image">
-                            <ImageIcon className="h-4 w-4" />
-                          </Button>
-                          <Button type="button" size="icon" variant="ghost" title="Add emoji">
-                            <Smile className="h-4 w-4" />
-                          </Button>
-                        </div>
-                        
-                        <div className="flex items-center gap-2">
-                          <div className="flex items-center">
-                            <Globe className="mr-1 h-4 w-4 text-muted-foreground" />
-                            <span className="text-xs text-muted-foreground">Public</span>
-                          </div>
-                          <Button type="submit" disabled={!postContent.trim()}>
-                            Post
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </form>
-              </CardContent>
-            </Card>
-          )}
+          {currentUser && <Post onPostCreated={() => null} />}
 
           {/* Feed Tabs */}
           <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab}>
@@ -240,20 +170,21 @@ const Feed: React.FC = () => {
               <h3 className="text-lg font-semibold">Who to follow</h3>
             </CardHeader>
             <CardContent className="space-y-4">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="flex items-start justify-between">
+              {suggestedUsers.map((user) => (
+                <div key={user.id} className="flex items-start justify-between">
                   <div className="flex items-start gap-3">
                     <Avatar className="h-10 w-10">
+                      <AvatarImage src={user.profilePicture || undefined} />
                       <AvatarFallback>
-                        {['JS', 'TS', 'RD'][i]}
+                        {user.username.substring(0, 2).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div className="space-y-1">
                       <p className="text-sm font-medium leading-none">
-                        {['Jane Smith', 'Tom Scott', 'Ruby Dev'][i]}
+                        {user.username}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        @{['janesmith', 'tscott', 'rubydev'][i]}
+                        @{user.username}
                       </p>
                     </div>
                   </div>

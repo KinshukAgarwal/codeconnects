@@ -4,9 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/context/AuthContext';
-import { PostService } from '@/utils/db';
 import { Image, Code, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { usePosts } from '@/hooks/usePosts';
+import { supabase } from '@/integrations/supabase/client';
 
 interface PostProps {
   onPostCreated?: () => void;
@@ -14,13 +15,55 @@ interface PostProps {
 
 const Post: React.FC<PostProps> = ({ onPostCreated }) => {
   const { currentUser } = useAuth();
+  const { useCreatePost } = usePosts();
+  const { mutate: createPost, isLoading: isSubmitting } = useCreatePost();
+  
   const [content, setContent] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
   const [mediaUrl, setMediaUrl] = useState('');
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [mediaPreview, setMediaPreview] = useState('');
   const [showCodeEditor, setShowCodeEditor] = useState(false);
   const [codeContent, setCodeContent] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    const fileExt = file.name.split('.').pop();
+    const filePath = `${Date.now()}-${Math.floor(Math.random() * 1000)}.${fileExt}`;
+
+    // Show preview
+    setMediaFile(file);
+    setMediaPreview(URL.createObjectURL(file));
+  };
+
+  const uploadMedia = async (): Promise<string | null> => {
+    if (!mediaFile) return mediaUrl; // Return URL if already provided
+    
+    try {
+      const fileExt = mediaFile.name.split('.').pop();
+      const filePath = `${Date.now()}-${Math.floor(Math.random() * 1000)}.${fileExt}`;
+
+      const { data, error } = await supabase.storage
+        .from('codeconnect')
+        .upload(`posts/${filePath}`, mediaFile);
+
+      if (error) throw error;
+
+      // Get public URL
+      const { data: publicURL } = supabase.storage
+        .from('codeconnect')
+        .getPublicUrl(`posts/${filePath}`);
+
+      return publicURL.publicUrl;
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      throw error;
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,44 +73,41 @@ const Post: React.FC<PostProps> = ({ onPostCreated }) => {
       return;
     }
     
-    setIsSubmitting(true);
-    
     try {
-      // Prepare post content
-      let finalContent = content;
-      
-      // Add code block if exists
-      if (codeContent.trim()) {
-        finalContent += `\n\n\`\`\`\n${codeContent.trim()}\n\`\`\``;
+      // Upload media if there's a file
+      let finalMediaUrl = null;
+      if (mediaFile || mediaUrl) {
+        finalMediaUrl = mediaFile ? await uploadMedia() : mediaUrl;
       }
       
       // Create the post
-      PostService.create({
-        userId: currentUser.id,
-        description: finalContent,
-        tags: tags.length > 0 ? tags : undefined,
-        media: mediaUrl.trim() || undefined
+      createPost({
+        description: content,
+        content: content,
+        code: codeContent.trim() || null,
+        media: finalMediaUrl || undefined,
+        tags: tags.length > 0 ? tags : undefined
+      }, {
+        onSuccess: () => {
+          // Reset form
+          setContent('');
+          setTags([]);
+          setTagInput('');
+          setMediaUrl('');
+          setMediaFile(null);
+          setMediaPreview('');
+          setShowCodeEditor(false);
+          setCodeContent('');
+          
+          // Callback to refresh posts
+          if (onPostCreated) {
+            onPostCreated();
+          }
+        }
       });
-      
-      // Reset form
-      setContent('');
-      setTags([]);
-      setTagInput('');
-      setMediaUrl('');
-      setShowCodeEditor(false);
-      setCodeContent('');
-      
-      toast.success("Post created successfully");
-      
-      // Callback to refresh posts
-      if (onPostCreated) {
-        onPostCreated();
-      }
     } catch (error) {
-      toast.error("Failed to create post");
       console.error(error);
-    } finally {
-      setIsSubmitting(false);
+      toast.error("Failed to create post");
     }
   };
 
@@ -86,6 +126,15 @@ const Post: React.FC<PostProps> = ({ onPostCreated }) => {
 
   const handleRemoveTag = (tagToRemove: string) => {
     setTags(tags.filter(tag => tag !== tagToRemove));
+  };
+  
+  const handleImageUrlInput = () => {
+    const url = prompt("Enter image URL:");
+    if (url) {
+      setMediaUrl(url);
+      setMediaFile(null);
+      setMediaPreview(url);
+    }
   };
 
   if (!currentUser) return null;
@@ -135,15 +184,16 @@ const Post: React.FC<PostProps> = ({ onPostCreated }) => {
               </div>
             )}
             
-            {mediaUrl && (
+            {(mediaPreview || mediaUrl) && (
               <div className="mt-3 relative">
                 <img 
-                  src={mediaUrl} 
+                  src={mediaPreview || mediaUrl} 
                   alt="Preview" 
                   className="w-full h-auto max-h-60 object-cover rounded-md" 
                   onError={() => {
                     toast.error("Invalid image URL");
                     setMediaUrl('');
+                    setMediaPreview('');
                   }}
                 />
                 <Button
@@ -151,7 +201,11 @@ const Post: React.FC<PostProps> = ({ onPostCreated }) => {
                   variant="secondary"
                   size="icon"
                   className="absolute top-2 right-2 h-7 w-7 rounded-full opacity-75"
-                  onClick={() => setMediaUrl('')}
+                  onClick={() => {
+                    setMediaUrl('');
+                    setMediaFile(null);
+                    setMediaPreview('');
+                  }}
                 >
                   <X className="h-4 w-4" />
                   <span className="sr-only">Remove image</span>
@@ -198,18 +252,33 @@ const Post: React.FC<PostProps> = ({ onPostCreated }) => {
         
         <div className="flex justify-between mt-4">
           <div className="flex gap-2">
+            <input 
+              type="file" 
+              id="media-upload" 
+              accept="image/*" 
+              className="hidden" 
+              onChange={handleImageUpload}
+            />
             <Button
               type="button"
               variant="ghost"
               size="sm"
               className="flex items-center gap-1 text-muted-foreground"
-              onClick={() => {
-                const url = prompt("Enter image URL:");
-                if (url) setMediaUrl(url);
-              }}
+              onClick={() => document.getElementById('media-upload')?.click()}
             >
               <Image className="h-4 w-4" />
-              <span>Image</span>
+              <span>Upload</span>
+            </Button>
+            
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="flex items-center gap-1 text-muted-foreground"
+              onClick={handleImageUrlInput}
+            >
+              <Image className="h-4 w-4" />
+              <span>URL</span>
             </Button>
             
             <Button
@@ -233,7 +302,7 @@ const Post: React.FC<PostProps> = ({ onPostCreated }) => {
               (!content.trim() && !codeContent.trim())
             }
           >
-            Post
+            {isSubmitting ? 'Posting...' : 'Post'}
           </Button>
         </div>
       </form>

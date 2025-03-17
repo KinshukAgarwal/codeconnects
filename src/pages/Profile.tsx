@@ -11,61 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/components/ui/use-toast';
 import { Pencil, Grid, BookmarkIcon } from 'lucide-react';
-
-interface ProfilePost {
-  id: string;
-  userId: string;
-  username?: string;
-  userProfilePic?: string | null;
-  description: string;
-  content?: string;
-  code?: string | null;
-  media?: string | null;
-  likes: string[];  // Changed from number | string[] to just string[]
-  comments: number;
-  tags: string[];
-  timeAgo?: string;
-  isLiked?: boolean;
-  createdAt: string;
-  updatedAt: string; // Changed from optional to required
-}
-
-// Mock function to fetch user profile data
-const fetchUserProfile = async (username: string) => {
-  await new Promise(resolve => setTimeout(resolve, 800));
-  
-  return {
-    id: "user-123",
-    username: username,
-    email: `${username}@example.com`,
-    profilePicture: "https://source.unsplash.com/random/200x200/?portrait",
-    bio: "Full-stack developer passionate about React, TypeScript, and building beautiful UIs",
-    followers: Array.from({ length: 120 }, (_, i) => `follower-${i}`),
-    following: Array.from({ length: 85 }, (_, i) => `following-${i}`),
-    createdAt: "2023-01-15T00:00:00Z"
-  };
-};
-
-// Mock function to fetch user posts
-const fetchUserPosts = async (userId: string): Promise<ProfilePost[]> => {
-  await new Promise(resolve => setTimeout(resolve, 1000));
-  
-  return Array.from({ length: 6 }, (_, i) => ({
-    id: `post-${i}`,
-    userId: userId,
-    description: `This is a post about ${['React', 'TypeScript', 'CSS', 'JavaScript', 'Node.js', 'Web Development'][i % 6]}`,
-    content: `This is a post about ${['React', 'TypeScript', 'CSS', 'JavaScript', 'Node.js', 'Web Development'][i % 6]}`,
-    code: i % 2 === 0 ? 'const exampleCode = () => {\n  console.log("Hello world");\n};' : null,
-    media: i % 3 === 0 ? 'https://via.placeholder.com/600x400' : null,
-    likes: Array.from({ length: Math.floor(Math.random() * 50) }, (_, j) => `user-${j}`), // Changed to create an array of strings
-    comments: Math.floor(Math.random() * 10),
-    tags: ['coding', 'webdev', 'javascript'].slice(0, i % 3 + 1),
-    timeAgo: `${i + 1}d ago`,
-    isLiked: Boolean(i % 2),
-    createdAt: new Date(Date.now() - i * 86400000).toISOString(),
-    updatedAt: new Date(Date.now() - i * 86400000).toISOString(), // Always providing updatedAt value
-  }));
-};
+import { supabase } from '@/integrations/supabase/client';
+import { usePosts } from '@/hooks/usePosts';
 
 const Profile: React.FC = () => {
   const { username } = useParams<{ username: string }>();
@@ -73,20 +20,56 @@ const Profile: React.FC = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('posts');
+  const { useUserPosts } = usePosts();
   
-  const isOwnProfile = currentUser?.username === username;
-  
+  // Fetch user profile
   const { data: userProfile, isLoading: isLoadingProfile } = useQuery({
     queryKey: ['profile', username],
-    queryFn: () => fetchUserProfile(username || ''),
+    queryFn: async () => {
+      if (!username) throw new Error('Username is required');
+      
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('username', username)
+        .single();
+      
+      if (error) throw error;
+      
+      // Get follower count
+      const { data: followers, error: followersError } = await supabase
+        .from('likes')
+        .select('user_id')
+        .eq('post_id', data.id);
+        
+      if (followersError) throw followersError;
+      
+      // Get following count
+      const { data: following, error: followingError } = await supabase
+        .from('likes')
+        .select('post_id')
+        .eq('user_id', data.id);
+        
+      if (followingError) throw followingError;
+      
+      return {
+        id: data.id,
+        username: data.username,
+        email: username, // Just a placeholder for typescript
+        profilePicture: data.profile_picture,
+        bio: data.bio || '',
+        followers: followers?.map(f => f.user_id) || [],
+        following: following?.map(f => f.post_id) || [],
+        createdAt: data.created_at
+      };
+    },
     enabled: !!username,
   });
   
-  const { data: userPosts = [], isLoading: isLoadingPosts } = useQuery({
-    queryKey: ['profilePosts', userProfile?.id],
-    queryFn: () => fetchUserPosts(userProfile?.id || ''),
-    enabled: !!userProfile?.id,
-  });
+  // Fetch user posts using the hook
+  const { data: userPosts = [], isLoading: isLoadingPosts } = useUserPosts(userProfile?.id || '');
+  
+  const isOwnProfile = currentUser?.username === username;
   
   const handleFollowUser = () => {
     if (!currentUser) {
