@@ -21,7 +21,7 @@ interface ProfilePost {
   content?: string;
   code?: string | null;
   media?: string | null;
-  likes: string[] | number;
+  likes: string[];  // Changed from number | string[] to just string[]
   comments: number;
   tags: string[];
   timeAgo?: string;
@@ -57,7 +57,7 @@ const fetchUserPosts = async (userId: string): Promise<ProfilePost[]> => {
     content: `This is a post about ${['React', 'TypeScript', 'CSS', 'JavaScript', 'Node.js', 'Web Development'][i % 6]}`,
     code: i % 2 === 0 ? 'const exampleCode = () => {\n  console.log("Hello world");\n};' : null,
     media: i % 3 === 0 ? 'https://via.placeholder.com/600x400' : null,
-    likes: Math.floor(Math.random() * 50),
+    likes: Array.from({ length: Math.floor(Math.random() * 50) }, (_, j) => `user-${j}`), // Changed to create an array of strings
     comments: Math.floor(Math.random() * 10),
     tags: ['coding', 'webdev', 'javascript'].slice(0, i % 3 + 1),
     timeAgo: `${i + 1}d ago`,
